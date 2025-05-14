@@ -14,6 +14,10 @@ class Elevator:
         self.lock = threading.Lock()
         self.running = True
         self.id = id
+        # Biến thống kê
+        self.request_count = 0  # Số yêu cầu đã xử lý
+        self.stop_count = 0     # Số lần dừng
+        self.total_travel_time = 0  # Tổng thời gian di chuyển (giây)
 
     def add_request(self, floor, direction=None):
         if floor < 1 or floor > self.num_floors:
@@ -64,9 +68,10 @@ class Elevator:
 
             step = 1 if self.direction == "UP" else -1
             while self.current_floor != target_floor and self.running:
-                time.sleep(2)
+                time.sleep(2)  # 2 giây mỗi tầng
                 with self.lock:
                     self.current_floor += step
+                    self.total_travel_time += 2  # Cộng thời gian di chuyển
                     temp_requests = []
                     stop_here = False
                     while not self.requests.empty():
@@ -81,12 +86,15 @@ class Elevator:
                         self.door_open = True
                         time.sleep(2)
                         self.door_open = False
+                        self.stop_count += 1  # Tăng số lần dừng ở tầng trung gian
 
             with self.lock:
                 self.door_open = True
             time.sleep(2)
             with self.lock:
                 self.door_open = False
+                self.stop_count += 1  # Tăng số lần dừng ở tầng đích
+                self.request_count += 1  # Tăng số yêu cầu đã xử lý
 
         with self.lock:
             self.direction = "IDLE"
@@ -171,8 +179,18 @@ class ElevatorGUI:
         self.label1_door = tk.Label(self.status1_frame, text=f"TM1 Cửa: {'Mở' if elevator_system.elevators[0].door_open else 'Đóng'}", font=("Arial", 14), bg="lightblue")
         self.label1_door.pack()
 
+        # Thang máy 1: Thống kê
+        self.stats1_frame = tk.Frame(self.elevator1_frame, bg="lightblue")
+        self.stats1_frame.pack(pady=5)
+        self.label1_requests = tk.Label(self.stats1_frame, text=f"Yêu cầu xử lý: {elevator_system.elevators[0].request_count}", font=("Arial", 12), bg="lightblue")
+        self.label1_requests.pack()
+        self.label1_stops = tk.Label(self.stats1_frame, text=f"Số lần dừng: {elevator_system.elevators[0].stop_count}", font=("Arial", 12), bg="lightblue")
+        self.label1_stops.pack()
+        self.label1_travel_time = tk.Label(self.stats1_frame, text=f"Thời gian di chuyển: {elevator_system.elevators[0].total_travel_time} giây", font=("Arial", 12), bg="lightblue")
+        self.label1_travel_time.pack()
+
         # Thang máy 1: Hình vẽ
-        self.canvas1 = tk.Canvas(self.elevator1_frame, width=200, height=600, bg="lightgrey")
+        self.canvas1 = tk.Canvas(self.elevator1_frame, width=200, height=550, bg="lightgrey")
         self.canvas1.pack(pady=10)
         self.draw_building(self.canvas1, elevator_system.elevators[0])
 
@@ -218,8 +236,18 @@ class ElevatorGUI:
         self.label2_door = tk.Label(self.status2_frame, text=f"TM2 Cửa: {'Mở' if elevator_system.elevators[1].door_open else 'Đóng'}", font=("Arial", 14), bg="lightblue")
         self.label2_door.pack()
 
+        # Thang máy 2: Thống kê
+        self.stats2_frame = tk.Frame(self.elevator2_frame, bg="lightblue")
+        self.stats2_frame.pack(pady=5)
+        self.label2_requests = tk.Label(self.stats2_frame, text=f"Yêu cầu xử lý: {elevator_system.elevators[1].request_count}", font=("Arial", 12), bg="lightblue")
+        self.label2_requests.pack()
+        self.label2_stops = tk.Label(self.stats2_frame, text=f"Số lần dừng: {elevator_system.elevators[1].stop_count}", font=("Arial", 12), bg="lightblue")
+        self.label2_stops.pack()
+        self.label2_travel_time = tk.Label(self.stats2_frame, text=f"Thời gian di chuyển: {elevator_system.elevators[1].total_travel_time} giây", font=("Arial", 12), bg="lightblue")
+        self.label2_travel_time.pack()
+
         # Thang máy 2: Hình vẽ
-        self.canvas2 = tk.Canvas(self.elevator2_frame, width=200, height=600, bg="lightgrey")
+        self.canvas2 = tk.Canvas(self.elevator2_frame, width=200, height=550, bg="lightgrey")
         self.canvas2.pack(pady=10)
         self.draw_building(self.canvas2, elevator_system.elevators[1])
 
@@ -243,7 +271,7 @@ class ElevatorGUI:
         self.update_gui()
 
     def draw_building(self, canvas, elevator):
-        floor_height = 600 // elevator.num_floors
+        floor_height = 550 // elevator.num_floors
         for i in range(elevator.num_floors + 1):
             y = i * floor_height
             canvas.create_line(10, y, 190, y, fill="black")
@@ -258,7 +286,7 @@ class ElevatorGUI:
         )
 
     def update_elevator_position(self, elevator, canvas):
-        floor_height = 600 // elevator.num_floors
+        floor_height = 550 // elevator.num_floors
         elevator_height = floor_height - 5
         y_position = (elevator.num_floors - elevator.current_floor) * floor_height + 5
         canvas.coords(elevator.elevator_rect, 100, y_position, 150, y_position + elevator_height)
@@ -285,11 +313,17 @@ class ElevatorGUI:
         self.label1_floor.config(text=f"TM1 Tầng: {self.elevator_system.elevators[0].current_floor}")
         self.label1_direction.config(text=f"TM1 Hướng: {self.elevator_system.elevators[0].direction}")
         self.label1_door.config(text=f"TM1 Cửa: {'Mở' if self.elevator_system.elevators[0].door_open else 'Đóng'}")
+        self.label1_requests.config(text=f"Yêu cầu xử lý: {self.elevator_system.elevators[0].request_count}")
+        self.label1_stops.config(text=f"Số lần dừng: {self.elevator_system.elevators[0].stop_count}")
+        self.label1_travel_time.config(text=f"Thời gian di chuyển: {self.elevator_system.elevators[0].total_travel_time} giây")
         self.update_elevator_position(self.elevator_system.elevators[0], self.canvas1)
 
         self.label2_floor.config(text=f"TM2 Tầng: {self.elevator_system.elevators[1].current_floor}")
         self.label2_direction.config(text=f"TM2 Hướng: {self.elevator_system.elevators[1].direction}")
         self.label2_door.config(text=f"TM2 Cửa: {'Mở' if self.elevator_system.elevators[1].door_open else 'Đóng'}")
+        self.label2_requests.config(text=f"Yêu cầu xử lý: {self.elevator_system.elevators[1].request_count}")
+        self.label2_stops.config(text=f"Số lần dừng: {self.elevator_system.elevators[1].stop_count}")
+        self.label2_travel_time.config(text=f"Thời gian di chuyển: {self.elevator_system.elevators[1].total_travel_time} giây")
         self.update_elevator_position(self.elevator_system.elevators[1], self.canvas2)
 
         self.root.after(500, self.update_gui)
