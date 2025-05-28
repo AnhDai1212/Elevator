@@ -4,7 +4,6 @@ import queue
 import sqlite3
 from datetime import datetime
 
-
 class Elevator:
     def __init__(self, num_floors, id):
         self.num_floors = num_floors
@@ -36,6 +35,8 @@ class Elevator:
                 self.requests.put(req)
             if not duplicate:
                 self.requests.put((floor, direction))
+                # Lưu lịch sử request vào database khi thêm yêu cầu mới
+                self.log_request(floor, direction)
             if self.direction == "IDLE" and self.running:
                 threading.Thread(target=self.process_requests, daemon=True).start()
         return True
@@ -54,12 +55,10 @@ class Elevator:
                         if self.direction == "IDLE":
                             target_floor, target_direction = floor, direction
                             break
-                        elif self.direction == "UP" and floor >= self.current_floor and (
-                                direction is None or direction == "UP"):
+                        elif self.direction == "UP" and floor >= self.current_floor and (direction is None or direction == "UP"):
                             if target_floor is None or floor > target_floor:
                                 target_floor, target_direction = floor, direction
-                        elif self.direction == "DOWN" and floor <= self.current_floor and (
-                                direction is None or direction == "DOWN"):
+                        elif self.direction == "DOWN" and floor <= self.current_floor and (direction is None or direction == "DOWN"):
                             if target_floor is None or floor < target_floor:
                                 target_floor, target_direction = floor, direction
                     for floor, direction in all_requests:
@@ -76,7 +75,6 @@ class Elevator:
                     with self.lock:
                         self.current_floor += step
                         self.total_travel_time += 2
-                        self.log_state(db_conn)
                         temp_requests = []
                         stop_here = False
                         while not self.requests.empty():
@@ -89,33 +87,34 @@ class Elevator:
                             self.requests.put(req)
                         if stop_here:
                             self.door_open = True
-                            self.log_state(db_conn)
                             time.sleep(2)
                             self.door_open = False
-                            self.log_state(db_conn)
                             self.stop_count += 1
 
                 with self.lock:
                     self.door_open = True
-                    self.log_state(db_conn)
                 time.sleep(2)
                 with self.lock:
                     self.door_open = False
-                    self.log_state(db_conn)
                     self.stop_count += 1
                     self.request_count += 1
 
             with self.lock:
                 self.direction = "IDLE"
-                self.log_state(db_conn)
         finally:
             db_conn.close()
 
-    def log_state(self, db_conn):
-        cursor = db_conn.cursor()
-        cursor.execute(
-            "INSERT INTO elevator_states (elevator_id, current_floor, direction, door_open, timestamp) VALUES (?, ?, ?, ?, ?)",
-            (self.id, self.current_floor, self.direction, 1 if self.door_open else 0,
-             datetime.now().strftime('%Y-%m-%d %H:%M:%S'))
-        )
-        db_conn.commit()
+    def log_request(self, floor, direction):
+        db_conn = sqlite3.connect("elevator.db")
+        try:
+            cursor = db_conn.cursor()
+            cursor.execute(
+                "INSERT INTO request_history (elevator_id, floor, direction, timestamp) VALUES (?, ?, ?, ?)",
+                (self.id, floor, direction if direction else "NONE", datetime.now().strftime('%Y-%m-%d %H:%M:%S'))
+            )
+            db_conn.commit()
+        finally:
+            db_conn.close()
+
+    def stop(self):
+        self.running = False
