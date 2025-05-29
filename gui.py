@@ -20,8 +20,6 @@ class ElevatorGUI:
         self.control_frame.pack(side=tk.LEFT, padx=20, pady=10, fill=tk.Y)
         self.elevator2_frame = tk.Frame(self.main_frame, bg="lightblue")
         self.elevator2_frame.pack(side=tk.LEFT, padx=20, pady=10, fill=tk.Y)
-        self.history_frame = tk.Frame(self.main_frame, bg="lightblue")
-        self.history_frame.pack(side=tk.LEFT, padx=20, pady=10, fill=tk.Y)
 
         self.status1_frame = tk.Frame(self.elevator1_frame, bg="lightblue")
         self.status1_frame.pack(pady=5)
@@ -108,12 +106,6 @@ class ElevatorGUI:
             tk.Button(row2, text=f"T{i}", command=lambda x=i: self.request_floor(elevator_system.elevators[1], x),
                       width=4).pack(side=tk.LEFT, padx=2)
 
-        self.request_history_frame = tk.Frame(self.history_frame, bg="lightblue")
-        self.request_history_frame.pack(pady=5)
-        tk.Label(self.request_history_frame, text="Lịch sử yêu cầu", font=("Arial", 12), bg="lightblue").pack()
-        self.history_text = tk.Text(self.request_history_frame, height=30, width=40, font=("Arial", 10))
-        self.history_text.pack()
-
         tk.Button(self.control_frame, text="Dừng khẩn cấp tất cả", command=self.emergency_stop_all, bg="red",
                   fg="white", font=("Arial", 12), width=20).pack(pady=10)
 
@@ -129,16 +121,24 @@ class ElevatorGUI:
         elevator_height = floor_height - 5
         elevator_width = 50
         y_position = (elevator.num_floors - elevator.current_floor) * floor_height + 5
+        # Lưu màu gốc của thang máy vào thuộc tính elevator
+        elevator.original_color = "blue" if elevator.id == 1 else "green"
         elevator.elevator_rect = canvas.create_rectangle(
             100, y_position, 100 + elevator_width, y_position + elevator_height,
-            fill="blue" if elevator.id == 1 else "green", outline="black"
+            fill=elevator.original_color, outline="black"
         )
 
     def update_elevator_position(self, elevator, canvas):
         floor_height = 550 // elevator.num_floors
         elevator_height = floor_height - 5
         y_position = (elevator.num_floors - elevator.current_floor) * floor_height + 5
+        # Cập nhật vị trí hình chữ nhật
         canvas.coords(elevator.elevator_rect, 100, y_position, 150, y_position + elevator_height)
+        # Thay đổi màu dựa trên trạng thái cửa
+        if elevator.door_open:
+            canvas.itemconfig(elevator.elevator_rect, fill="white")
+        else:
+            canvas.itemconfig(elevator.elevator_rect, fill=elevator.original_color)
 
     def request_call(self, floor, direction):
         self.call_elevator(floor, direction)
@@ -211,8 +211,7 @@ class ElevatorGUI:
         if self.elevator_system.assign_request(floor, direction):
             from datetime import datetime
             timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-            assigned_elevator = self.elevator_system.elevators[0] if self.elevator_system.elevators[0].current_floor <= floor else self.elevator_system.elevators[1]
-            self.requests.append((floor, direction, assigned_elevator.id, timestamp))
+            self.requests.append((floor, direction, None, timestamp))  # Không cần assigned_elevator vì không hiển thị
             if len(self.requests) > 20:
                 self.requests.pop(0)
             messagebox.showinfo("Yêu cầu", f"Gọi thang tại tầng {floor} ({direction})")
@@ -236,12 +235,6 @@ class ElevatorGUI:
         messagebox.showinfo("Khẩn cấp", "Cả hai thang máy đã dừng!")
         self.root.quit()
 
-    def update_history(self):
-        self.history_text.delete(1.0, tk.END)
-        for floor, direction, elevator_id, timestamp in self.requests:
-            self.history_text.insert(tk.END, f"TM{elevator_id} - Tầng {floor} - {direction} - {timestamp}\n")
-        self.root.after(1000, self.update_history)
-
     def update_gui(self):
         self.label1_floor.config(text=f"TM1 Tầng: {self.elevator_system.elevators[0].current_floor}")
         self.label1_direction.config(text=f"TM1 Hướng: {self.elevator_system.elevators[0].direction}")
@@ -252,8 +245,6 @@ class ElevatorGUI:
         self.label2_direction.config(text=f"TM2 Hướng: {self.elevator_system.elevators[1].direction}")
         self.label2_door.config(text=f"TM2 Cửa: {'Mở' if self.elevator_system.elevators[1].door_open else 'Đóng'}")
         self.update_elevator_position(self.elevator_system.elevators[1], self.canvas2)
-
-        self.update_history()
 
         self.root.after(500, self.update_gui)
 

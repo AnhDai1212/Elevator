@@ -41,7 +41,7 @@ class ElevatorSystem:
 
             if best_elevator is None:
                 for elevator in self.elevators:
-                    if elevator != self.elevators[0] if best_elevator == self.elevators[0] else self.elevators[0]:
+                    if elevator == self.elevators[0]:
                         best_elevator = elevator
                         break
 
